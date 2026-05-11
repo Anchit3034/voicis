@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <alsa/asoundlib.h>
 
-#define CHUNK_SIZE 480
+#define CHUNK_SIZE 160
 #define SAMPLE_RATE 16000
 
 snd_pcm_t *capture_handle;
