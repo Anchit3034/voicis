@@ -13,6 +13,6 @@ def build_context(prompt):
 
     return conversation_memory
 def add_response(response):
-    conversation_memory.append({"role","assistant",
+    conversation_memory.append({"role":"assistant",
                                 "content":response})
 
