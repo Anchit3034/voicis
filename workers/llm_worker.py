@@ -3,7 +3,9 @@ from runtime.queues import (
     llm_queue,
     event_queue
 )
-
+from runtime.signals import (
+    interrupt_event
+)
 from runtime.events import Event
 
 from llm.ollama_runtime import (
@@ -13,7 +15,7 @@ from llm.ollama_runtime import (
 from optimization.token_optimizer import (
     optimize_prompt
 )
-
+import runtime.runtime_flags as flags
 def llm_loop():
 
     while True:
@@ -30,10 +32,15 @@ def llm_loop():
             f"\n[USER] {optimized}"
         )
 
-        for token in stream_llm(
-            optimized
-        ):
+        for token in stream_llm(optimized):
 
+            if interrupt_event.is_set():
+
+                print(
+                    "\n[LLM INTERRUPTED]"
+                    )
+
+                break
             print(
                 token,
                 end="",

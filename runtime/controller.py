@@ -5,7 +5,9 @@ from runtime.events import Event
 from runtime.queues import (
     event_queue
 )
-
+from runtime.runtime_flags import (
+    interrupt_flag
+)
 class RuntimeController:
 
     def __init__(self):
@@ -62,12 +64,14 @@ class RuntimeController:
 
             if event == Event.INTERRUPT:
 
-                self.state = (
-                    RuntimeState.LISTENING
-                )
+                print("[SYSTEM] INTERRUPTING")
 
-        print(
-            f"[STATE] {self.state}"
-        )
+            import runtime.runtime_flags \
+                    as flags
+
+            flags.interrupt_flag = False
+
+            self.state = (RuntimeState.LISTENING)
+            print(f"[STATE] {self.state}")
 
 controller = RuntimeController()

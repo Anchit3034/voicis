@@ -1,4 +1,11 @@
 import subprocess
+import threading
+import time
+
+from runtime.signals import (
+    interrupt_event
+)
+
 
 PIPER_PATH = (
     "/home/anchit-jain/.local/bin/piper"
@@ -10,6 +17,7 @@ MODEL_PATH = (
 )
 
 current_piper = None
+
 current_aplay = None
 
 def stop_tts():
@@ -29,14 +37,29 @@ def stop_tts():
 
         current_aplay = None
 
+def interrupt_monitor():
+
+    while True:
+
+        if interrupt_event.is_set():
+
+            stop_tts()
+
+            break
+
+        time.sleep(0.02)
+
 def speak_stream(text):
 
     global current_piper
     global current_aplay
 
-    # =====================
-    # PIPER PROCESS
-    # =====================
+    monitor = threading.Thread(
+        target=interrupt_monitor,
+        daemon=True
+    )
+
+    monitor.start()
 
     current_piper = subprocess.Popen(
         [
@@ -48,10 +71,6 @@ def speak_stream(text):
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE
     )
-
-    # =====================
-    # AUDIO PLAYBACK PIPE
-    # =====================
 
     current_aplay = subprocess.Popen(
         [
@@ -66,10 +85,6 @@ def speak_stream(text):
         stdin=current_piper.stdout
     )
 
-    # =====================
-    # SEND TEXT
-    # =====================
-
     current_piper.stdin.write(
         text.encode()
     )
@@ -78,5 +93,4 @@ def speak_stream(text):
 
     current_aplay.wait()
 
-    current_piper = None
-    current_aplay = None
+    stop_tts()

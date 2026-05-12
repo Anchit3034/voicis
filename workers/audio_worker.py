@@ -1,19 +1,25 @@
 import ctypes
 import webrtcvad
-
+import collections
 from runtime.events import Event
-
+from runtime.signals import (
+    speaking_event,
+    interrupt_event
+)
 from runtime.queues import (
     audio_queue,
     event_queue
 )
-
+from runtime.runtime_flags import (
+    interrupt_flag
+)
 CHUNK_SIZE = 160
 
 SAMPLE_RATE = 16000
 
 MAX_SILENCE_CHUNKS = 4
-
+PREBUFFER_CHUNKS=12
+prebuffer=collections.deque(maxlen=PREBUFFER_CHUNKS)
 lib = ctypes.CDLL(
     "./audio/libsegmenter.so"
 )
@@ -23,7 +29,7 @@ lib.init_audio()
 lib.read_audio.argtypes = [
     ctypes.POINTER(ctypes.c_short)
 ]
-
+prebuffer.append(pcm_bytes)
 vad = webrtcvad.Vad(2)
 
 buffer = (
@@ -36,7 +42,7 @@ def audio_loop():
 
     silence_counter = 0
 
-    frames = []
+    frames = list(prebuffer)
 
     while True:
 
@@ -54,6 +60,17 @@ def audio_loop():
 
         if is_speech:
 
+    # =====================
+    # INTERRUPTION
+    # =====================
+
+            if speaking_event.is_set():
+
+                print(
+                    "\n[INTERRUPT DETECTED]"
+                )
+
+                interrupt_event.set()
             if not recording:
 
                 event_queue.put(
@@ -62,7 +79,7 @@ def audio_loop():
 
                 recording = True
 
-                frames = []
+                frames = list(prebuffer)
 
             silence_counter = 0
 
@@ -97,4 +114,4 @@ def audio_loop():
 
                     silence_counter = 0
 
-                    frames = []
+                    frames = list(prebuffer)
