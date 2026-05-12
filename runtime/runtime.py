@@ -1,6 +1,4 @@
 import ctypes
-
-import os
 import webrtcvad
 import threading
 import queue
@@ -11,8 +9,7 @@ from stt.whisper_engine import (
 )
 
 from optimization.token_optimizer import (
-    optimize_prompt,
-    token_count
+    optimize_prompt
 )
 
 from llm.ollama_runtime import (
@@ -20,7 +17,8 @@ from llm.ollama_runtime import (
 )
 
 from tts.speaker import (
-    speak
+    speak_stream,
+    stop_tts
 )
 
 # =========================
@@ -31,17 +29,10 @@ CHUNK_SIZE = 160
 
 SAMPLE_RATE = 16000
 
-MAX_SILENCE_CHUNKS = 8
-
-SEGMENT_DIR = "segments"
-
-os.makedirs(
-    SEGMENT_DIR,
-    exist_ok=True
-)
+MAX_SILENCE_CHUNKS = 4
 
 # =========================
-# LOAD C LIBRARY
+# LOAD AUDIO ENGINE
 # =========================
 
 lib = ctypes.CDLL(
@@ -75,17 +66,50 @@ buffer = (
 task_queue = queue.Queue()
 
 # =========================
-# AI WORKER
+# GLOBALS
+# =========================
+tts_queue = queue.Queue()
+
+is_speaking = False
+is_generating = False
+def tts_worker():
+
+    global is_speaking
+
+    while True:
+
+        text = tts_queue.get()
+
+        if text is None:
+            continue
+
+        is_speaking = True
+
+        speak_stream(text)
+
+        is_speaking = False
+# =========================
+# AI THREAD
 # =========================
 
 def ai_worker():
 
+    global is_generating
+
     while True:
 
-        pcm_audio=task_queue.get()
+        pcm_audio = task_queue.get()
+
+        is_generating = True
+
         start = time.time()
 
+        # =====================
+        # STT
+        # =====================
+
         text = transcribe_pcm(
+
             pcm_audio
         )
 
@@ -93,64 +117,49 @@ def ai_worker():
             text
         )
 
-        original_tokens = (
-            token_count(text)
-        )
-
-        reduced_tokens = (
-            token_count(optimized)
-        )
-
         print(
-            f"\n[USER] {text}"
+            f"\n[USER] {optimized}"
         )
 
-        print(
-            f"[OPTIMIZED] "
-            f"{optimized}"
-        )
+        # =====================
+        # STREAMING LLM
+        # =====================
 
-        print(
-            f"[TOKENS] "
-            f"{original_tokens}"
-            f" -> "
-            f"{reduced_tokens}"
-        )
+        response = ""
 
-        response = stream_llm(
-            optimized
-        )
+        sentence_buffer = ""
 
-        latency = (
-            time.time() - start
-        )
+        for token in stream_llm(optimized):
+            print(token, end="", flush=True)
 
-        print(
-            f"[AI] {response}"
-        )
+            response += token
 
-        print(
-            f"[LATENCY] "
-            f"{latency:.2f}s"
-        )
+            sentence_buffer += token
 
-        speak(response)
+            if token in [".", "!", "?"]:
+                tts_queue.put(sentence_buffer)
+
+                sentence_buffer = ""
+        
+        is_generating = False
 
 # =========================
 # START AI THREAD
 # =========================
-
+threading.Thread(
+    target=tts_worker,
+    daemon=True
+).start()
 threading.Thread(
     target=ai_worker,
     daemon=True
 ).start()
 
 # =========================
-# MAIN AUDIO LOOP
+# MAIN LOOP
 # =========================
-
 print(
-    "=== THREADED VOICE AI ==="
+    "=== STREAMING VOICE AI ==="
 )
 
 recording = False
@@ -159,10 +168,10 @@ silence_counter = 0
 
 frames = []
 
-segment_count = 0
-
 while True:
-
+    if is_speaking:
+        time.sleep(0.01)
+        continue
     result = lib.read_audio(buffer)
 
     if result <= 0:
@@ -175,12 +184,35 @@ while True:
         SAMPLE_RATE
     )
 
+    # =====================
+    # INTERRUPTION
+    # =====================
+    if is_generating and is_speech:
+
+        print("\n[INTERRUPT]")
+
+        stop_tts()
+
+        is_generating = False
+
+        recording = False
+
+        silence_counter = 0
+
+        frames = []
+
+        continue 
+    # =====================
+    # SPEECH DETECTION
+    # =====================
+
     if is_speech:
 
         if not recording:
 
             print(
-                "\n[SYSTEM] Speech Started"
+                "\n[SYSTEM] "
+                "Speech Started"
             )
 
             recording = True
@@ -204,8 +236,14 @@ while True:
                 MAX_SILENCE_CHUNKS
             ):
 
-                audio_pcm=b"".join(frames)
-                task_queue.put(audio_pcm)
+                audio_pcm = b"".join(
+                    frames
+                )
+
+                task_queue.put(
+                    audio_pcm
+                )
+
                 recording = False
 
                 silence_counter = 0

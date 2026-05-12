@@ -1,9 +1,7 @@
 import subprocess
-import tempfile
-import os
 
 PIPER_PATH = (
-    "./piper/piper"
+    "/home/anchit-jain/.local/bin/piper"
 )
 
 MODEL_PATH = (
@@ -11,57 +9,74 @@ MODEL_PATH = (
     "en_US-lessac-medium.onnx"
 )
 
-current_process = None
+current_piper = None
+current_aplay = None
 
 def stop_tts():
 
-    global current_process
+    global current_piper
+    global current_aplay
 
-    if current_process:
+    if current_piper:
 
-        current_process.kill()
+        current_piper.kill()
 
-        current_process = None
+        current_piper = None
+
+    if current_aplay:
+
+        current_aplay.kill()
+
+        current_aplay = None
 
 def speak_stream(text):
 
-    global current_process
+    global current_piper
+    global current_aplay
 
-    with tempfile.NamedTemporaryFile(
-        suffix=".wav",
-        delete=False
-    ) as tmp:
+    # =====================
+    # PIPER PROCESS
+    # =====================
 
-        wav_path = tmp.name
-
-    piper_cmd = [
-        PIPER_PATH,
-        "--model",
-        MODEL_PATH,
-        "--output_file",
-        wav_path
-    ]
-
-    piper = subprocess.Popen(
-        piper_cmd,
-        stdin=subprocess.PIPE
+    current_piper = subprocess.Popen(
+        [
+            PIPER_PATH,
+            "--model",
+            MODEL_PATH,
+            "--output_raw"
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE
     )
 
-    piper.stdin.write(
+    # =====================
+    # AUDIO PLAYBACK PIPE
+    # =====================
+
+    current_aplay = subprocess.Popen(
+        [
+            "aplay",
+            "-r",
+            "22050",
+            "-f",
+            "S16_LE",
+            "-t",
+            "raw"
+        ],
+        stdin=current_piper.stdout
+    )
+
+    # =====================
+    # SEND TEXT
+    # =====================
+
+    current_piper.stdin.write(
         text.encode()
     )
 
-    piper.stdin.close()
+    current_piper.stdin.close()
 
-    piper.wait()
+    current_aplay.wait()
 
-    current_process = subprocess.Popen(
-        [
-            "aplay",
-            wav_path
-        ]
-    )
-
-    current_process.wait()
-
-    os.remove(wav_path)
+    current_piper = None
+    current_aplay = None
