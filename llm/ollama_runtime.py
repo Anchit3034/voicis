@@ -5,7 +5,7 @@ from memory.context_manager import (
     add_response
 )
 
-MODEL = "mistral"
+MODEL = "tinyllama"
 
 def stream_llm(prompt):
 
