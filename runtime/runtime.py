@@ -7,7 +7,7 @@ import queue
 import time
 
 from stt.whisper_engine import (
-    transcribe
+    transcribe_pcm
 )
 
 from optimization.token_optimizer import (
@@ -75,22 +75,6 @@ buffer = (
 task_queue = queue.Queue()
 
 # =========================
-# SAVE WAV
-# =========================
-
-def save_wav(filename, pcm):
-
-    with wave.open(filename, "wb") as wf:
-
-        wf.setnchannels(1)
-
-        wf.setsampwidth(2)
-
-        wf.setframerate(SAMPLE_RATE)
-
-        wf.writeframes(pcm)
-
-# =========================
 # AI WORKER
 # =========================
 
@@ -98,12 +82,11 @@ def ai_worker():
 
     while True:
 
-        filename = task_queue.get()
-
+        pcm_audio=task_queue.get()
         start = time.time()
 
-        text = transcribe(
-            filename
+        text = transcribe_pcm(
+            pcm_audio
         )
 
         optimized = optimize_prompt(
@@ -221,30 +204,8 @@ while True:
                 MAX_SILENCE_CHUNKS
             ):
 
-                filename = (
-                    f"{SEGMENT_DIR}/"
-                    f"segment_"
-                    f"{segment_count}.wav"
-                )
-
-                segment_count += 1
-
-                audio_data = b"".join(frames)
-
-                save_wav(
-                    filename,
-                    audio_data
-                )
-
-                print(
-                    f"[SYSTEM] Saved: "
-                    f"{filename}"
-                )
-
-                task_queue.put(
-                    filename
-                )
-
+                audio_pcm=b"".join(frames)
+                task_queue.put(audio_pcm)
                 recording = False
 
                 silence_counter = 0
