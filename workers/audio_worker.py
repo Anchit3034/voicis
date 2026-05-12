@@ -21,6 +21,9 @@ speech_counter = 0
 SPEECH_CONFIRM_CHUNKS = 3
 MAX_SILENCE_CHUNKS = 4
 PREBUFFER_CHUNKS=12
+interrupt_counter = 0
+
+INTERRUPT_CONFIRM_CHUNKS = 4
 prebuffer=collections.deque(maxlen=PREBUFFER_CHUNKS)
 lib = ctypes.CDLL(
     "./audio/libsegmenter.so"
@@ -72,8 +75,9 @@ def audio_loop():
                 print(
                     "\n[INTERRUPT DETECTED]"
                 )
-
-                interrupt_event.set()
+                interrupt_counter += 1
+                if(interrupt_counter>=INTERRUPT_CONFIRM_CHUNKS):
+                    interrupt_event.set()
             if (not recording and speech_counter >= SPEECH_CONFIRM_CHUNKS):
 
 
@@ -82,7 +86,6 @@ def audio_loop():
                 )
 
                 recording = True
-
                 frames = list(prebuffer)
 
             silence_counter = 0
@@ -90,6 +93,7 @@ def audio_loop():
             frames.append(pcm_bytes)
 
         else:
+            interrupt_counter = 0
             speech_counter = 0
 
             if recording:
