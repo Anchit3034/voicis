@@ -106,10 +106,12 @@ def audio_loop():
                     audio_pcm = b"".join(
                         frames
                     )
-
-                    audio_queue.put(
-                        audio_pcm
-                    )
+                    try:
+                        audio_queue.put(
+                            audio_pcm
+                        )
+                    except:
+                        pass
 
                     event_queue.put(
                         Event.SPEECH_FINISHED
