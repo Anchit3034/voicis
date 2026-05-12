@@ -16,7 +16,9 @@ from runtime.runtime_flags import (
 CHUNK_SIZE = 160
 
 SAMPLE_RATE = 16000
+speech_counter = 0
 
+SPEECH_CONFIRM_CHUNKS = 3
 MAX_SILENCE_CHUNKS = 4
 PREBUFFER_CHUNKS=12
 prebuffer=collections.deque(maxlen=PREBUFFER_CHUNKS)
@@ -60,6 +62,7 @@ def audio_loop():
 
         if is_speech:
 
+            speech_counter += 1
     # =====================
     # INTERRUPTION
     # =====================
@@ -71,7 +74,8 @@ def audio_loop():
                 )
 
                 interrupt_event.set()
-            if not recording:
+            if (not recording and speech_counter >= SPEECH_CONFIRM_CHUNKS):
+
 
                 event_queue.put(
                     Event.SPEECH_STARTED
@@ -86,6 +90,7 @@ def audio_loop():
             frames.append(pcm_bytes)
 
         else:
+            speech_counter = 0
 
             if recording:
 
