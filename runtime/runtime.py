@@ -1,5 +1,5 @@
 import ctypes
-import wave
+
 import os
 import webrtcvad
 import threading
@@ -16,7 +16,7 @@ from optimization.token_optimizer import (
 )
 
 from llm.ollama_runtime import (
-    ask_llm
+    stream_llm
 )
 
 from tts.speaker import (
@@ -117,7 +117,7 @@ def ai_worker():
             f"{reduced_tokens}"
         )
 
-        response = ask_llm(
+        response = stream_llm(
             optimized
         )
 

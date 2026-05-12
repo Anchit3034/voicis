@@ -7,17 +7,26 @@ from memory.context_manager import (
 
 MODEL = "mistral"
 
-def ask_llm(prompt):
+def stream_llm(prompt):
 
     context = build_context(prompt)
 
-    response = ollama.chat(
+    stream = ollama.chat(
         model=MODEL,
-        messages=context
+        messages=context,
+        stream=True
     )
 
-    text = response["message"]["content"]
+    response_text = ""
 
-    add_response(text)
+    for chunk in stream:
 
-    return text
+        token = chunk[
+            "message"
+        ]["content"]
+
+        response_text += token
+
+        yield token
+
+    add_response(response_text)
