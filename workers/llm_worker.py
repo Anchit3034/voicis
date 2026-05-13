@@ -1,12 +1,7 @@
 from runtime.queues import (
     stt_queue,
-    llm_queue,
-    event_queue
+    tts_queue
 )
-from runtime.signals import (
-    interrupt_event
-)
-from runtime.events import Event
 
 from llm.ollama_runtime import (
     stream_llm
@@ -15,7 +10,11 @@ from llm.ollama_runtime import (
 from optimization.token_optimizer import (
     optimize_prompt
 )
-import runtime.runtime_flags as flags
+
+from runtime.signals import (
+    interrupt_event
+)
+
 def llm_loop():
 
     while True:
@@ -26,33 +25,48 @@ def llm_loop():
             text
         )
 
-        response = ""
-
         print(
             f"\n[USER] {optimized}"
         )
 
-        for token in stream_llm(optimized):
+        sentence = ""
+
+        for token in stream_llm(
+            optimized
+        ):
 
             if interrupt_event.is_set():
 
                 print(
                     "\n[LLM INTERRUPTED]"
-                    )
+                )
 
                 break
+
             print(
                 token,
                 end="",
                 flush=True
             )
 
-            response += token
+            sentence += token
+
+            # =====================
+            # SENTENCE STREAMING
+            # =====================
+
+            if token in [".", "!", "?"]:
+
+                try:
+
+                    tts_queue.put_nowait(
+                        sentence
+                    )
+
+                except:
+
+                    pass
+
+                sentence = ""
 
         print()
-
-        llm_queue.put(response)
-
-        event_queue.put(
-            Event.RESPONSE_READY
-        )

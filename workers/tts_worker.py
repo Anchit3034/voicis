@@ -1,3 +1,4 @@
+import time
 from runtime.queues import (
     llm_queue
 )
@@ -25,6 +26,8 @@ def tts_loop():
         try:
 
             speak_stream(response)
+            import runtime.signals as signals
+            signals.last_tts_time = time.time()
 
         except Exception as e:
 

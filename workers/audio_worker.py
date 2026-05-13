@@ -1,6 +1,9 @@
 import ctypes
 import webrtcvad
 import collections
+import time
+
+import runtime.signals as signals
 from runtime.events import Event
 from runtime.signals import (
     speaking_event,
@@ -34,7 +37,19 @@ lib.init_audio()
 lib.read_audio.argtypes = [
     ctypes.POINTER(ctypes.c_short)
 ]
+# =====================
+# AUDIO COOLDOWN
+# =====================
 
+if (
+    time.time() -
+    signals.last_tts_time
+) < 0.8:
+
+    continue
+#=============
+# VAD
+#==============
 vad = webrtcvad.Vad(2)
 
 buffer = (
