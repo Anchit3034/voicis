@@ -66,7 +66,9 @@ def speak_stream(text):
             PIPER_PATH,
             "--model",
             MODEL_PATH,
-            "--output_raw"
+            "--output-raw",
+            "--length_scale",
+            "0.9"
         ],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE

@@ -13,7 +13,7 @@ MODEL = whisper.load_model(
     device=DEVICE
 )
 
-def transcribe_stream(audio_pcm):
+def transcribe_pcm(audio_pcm):
 
     audio = (
         np.frombuffer(

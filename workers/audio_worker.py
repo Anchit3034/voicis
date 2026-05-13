@@ -10,6 +10,10 @@ from runtime.signals import (
     interrupt_event
 )
 from runtime.queues import (
+    clear_queue,
+    tts_queue
+)
+from runtime.queues import (
     audio_queue,
     event_queue
 )
@@ -37,16 +41,7 @@ lib.init_audio()
 lib.read_audio.argtypes = [
     ctypes.POINTER(ctypes.c_short)
 ]
-# =====================
-# AUDIO COOLDOWN
-# =====================
 
-if (
-    time.time() -
-    signals.last_tts_time
-) < 0.8:
-
-    continue
 #=============
 # VAD
 #==============
@@ -73,7 +68,13 @@ def audio_loop():
             continue
         pcm_bytes = bytes(buffer)
         
+        # =====================
+# AUDIO COOLDOWN
+# =====================
 
+        cooldown_active=(time.time() -signals.last_tts_time) < 0.8
+
+            
         is_speech = vad.is_speech(
             pcm_bytes,
             SAMPLE_RATE
@@ -86,14 +87,33 @@ def audio_loop():
     # INTERRUPTION
     # =====================
 
-            if speaking_event.is_set():
-
-                print(
-                    "\n[INTERRUPT DETECTED]"
-                )
+            if (speaking_event.is_set() and not cooldown_active):
                 interrupt_counter += 1
-                if(interrupt_counter>=INTERRUPT_CONFIRM_CHUNKS):
+
+                if (interrupt_counter >=INTERRUPT_CONFIRM_CHUNKS):
+
+
+                    print(
+                            "\n[INTERRUPT DETECTED]"
+                        )
+
+        # =====================
+        # STOP TTS
+        # =====================
+
                     interrupt_event.set()
+
+        # =====================
+        # CLEAR OLD SPEECH
+        # =====================
+
+                    clear_queue(tts_queue)
+
+                    interrupt_counter = 0
+
+            else:
+
+                interrupt_counter = 0
             if (not recording and speech_counter >= SPEECH_CONFIRM_CHUNKS):
 
 
@@ -109,7 +129,6 @@ def audio_loop():
             frames.append(pcm_bytes)
 
         else:
-            interrupt_counter = 0
             speech_counter = 0
 
             if recording:
