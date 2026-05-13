@@ -2,7 +2,7 @@ import whisper
 import numpy as np
 
 MODEL = whisper.load_model(
-    "tiny"
+    "base"
 )
 
 def transcribe_pcm(pcm_bytes):

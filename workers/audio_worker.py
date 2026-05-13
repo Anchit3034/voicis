@@ -34,13 +34,14 @@ lib.init_audio()
 lib.read_audio.argtypes = [
     ctypes.POINTER(ctypes.c_short)
 ]
-prebuffer.append(pcm_bytes)
+
 vad = webrtcvad.Vad(2)
 
 buffer = (
     ctypes.c_short * CHUNK_SIZE
 )()
-
+pcm_bytes = bytes(buffer)
+prebuffer.append(pcm_bytes)
 def audio_loop():
 
     recording = False
@@ -50,13 +51,13 @@ def audio_loop():
     frames = list(prebuffer)
 
     while True:
-
+        global speech_counter
         result = lib.read_audio(buffer)
 
         if result <= 0:
             continue
-
         pcm_bytes = bytes(buffer)
+        
 
         is_speech = vad.is_speech(
             pcm_bytes,

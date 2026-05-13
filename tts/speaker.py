@@ -8,7 +8,7 @@ from runtime.signals import (
 
 
 PIPER_PATH = (
-    "/home/anchit-jain/.local/bin/piper"
+    "piper"
 )
 
 MODEL_PATH = (
