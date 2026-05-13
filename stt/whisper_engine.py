@@ -1,13 +1,33 @@
 import whisper
 import numpy as np
+import torch
 
-MODEL = whisper.load_model(
-    "base"
+DEVICE = (
+    "cuda"
+    if torch.cuda.is_available()
+    else "cpu"
 )
 
-def transcribe_pcm(pcm_bytes):
-    audio_np=np.frombuffer(pcm_bytes,dtype=np.int16)
-    audio_float=(audio_np.astype(np.float32)/32768)
-    result = MODEL.transcribe(audio_float,fp16=False)
+MODEL = whisper.load_model(
+    "base",
+    device=DEVICE
+)
+
+def transcribe_stream(audio_pcm):
+
+    audio = (
+        np.frombuffer(
+            audio_pcm,
+            dtype=np.int16
+        )
+        .astype(np.float32)
+        / 32768.0
+    )
+
+    result = MODEL.transcribe(
+        audio,
+        fp16=True,
+        language="en"
+    )
 
     return result["text"].strip()
