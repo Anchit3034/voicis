@@ -4,34 +4,44 @@ import collections
 import time
 
 import runtime.signals as signals
+from runtime.controller import (
+    controller
+)
+
+from runtime.state import (
+    RuntimeState
+)
 from runtime.events import Event
-from runtime.signals import (
-    speaking_event,
-    interrupt_event
-)
-from runtime.queues import (
-    clear_queue,
-    tts_queue
-)
+
 from runtime.queues import (
     audio_queue,
     event_queue
 )
-from runtime.runtime_flags import (
-    interrupt_flag
+
+from runtime.signals import (
+    speaking_event,
+    interrupt_event
 )
-CHUNK_SIZE = 160
+MIN_AUDIO_BYTES = 12000
+CHUNK_SIZE = 480
 
 SAMPLE_RATE = 16000
-speech_counter = 0
 
-SPEECH_CONFIRM_CHUNKS = 3
-MAX_SILENCE_CHUNKS = 4
-PREBUFFER_CHUNKS=12
-interrupt_counter = 0
+MAX_SILENCE_CHUNKS = 12
+PREBUFFER_CHUNKS = 12
+
+SPEECH_CONFIRM_CHUNKS = 2
 
 INTERRUPT_CONFIRM_CHUNKS = 4
-prebuffer=collections.deque(maxlen=PREBUFFER_CHUNKS)
+
+prebuffer = collections.deque(
+    maxlen=PREBUFFER_CHUNKS
+)
+
+speech_counter = 0
+
+interrupt_counter = 0
+
 lib = ctypes.CDLL(
     "./audio/libsegmenter.so"
 )
@@ -42,39 +52,51 @@ lib.read_audio.argtypes = [
     ctypes.POINTER(ctypes.c_short)
 ]
 
-#=============
-# VAD
-#==============
-vad = webrtcvad.Vad(2)
+vad = webrtcvad.Vad(1)
 
 buffer = (
     ctypes.c_short * CHUNK_SIZE
 )()
-pcm_bytes = bytes(buffer)
-prebuffer.append(pcm_bytes)
+
+
 def audio_loop():
+
+    global speech_counter
+    global interrupt_counter
 
     recording = False
 
     silence_counter = 0
 
-    frames = list(prebuffer)
+    frames = []
 
     while True:
-        global speech_counter
+
+        if (
+            time.time() -
+            signals.last_tts_time
+        ) < 0.8:
+
+            continue
+
         result = lib.read_audio(buffer)
 
         if result <= 0:
             continue
-        pcm_bytes = bytes(buffer)
+
         
-        # =====================
-# AUDIO COOLDOWN
+        pcm_bytes = memoryview(buffer).cast("B").tobytes()
+
+# =====================
+# ALWAYS DRAIN ALSA
 # =====================
 
-        cooldown_active=(time.time() -signals.last_tts_time) < 0.8
+        if controller.state not in [RuntimeState.IDLE,
+                                    RuntimeState.LISTENING,
+                                    RuntimeState.SPEAKING]:
+            continue
 
-            
+        prebuffer.append(pcm_bytes)
         is_speech = vad.is_speech(
             pcm_bytes,
             SAMPLE_RATE
@@ -82,38 +104,24 @@ def audio_loop():
 
         if is_speech:
 
-            speech_counter += 1
-    # =====================
-    # INTERRUPTION
-    # =====================
+            if speaking_event.is_set():
 
-            if (speaking_event.is_set() and not cooldown_active):
                 interrupt_counter += 1
 
-                if (interrupt_counter >=INTERRUPT_CONFIRM_CHUNKS):
-
+                if (
+                    interrupt_counter >=
+                    INTERRUPT_CONFIRM_CHUNKS
+                ):
 
                     print(
-                            "\n[INTERRUPT DETECTED]"
-                        )
-
-        # =====================
-        # STOP TTS
-        # =====================
+                        "\n[INTERRUPT DETECTED]"
+                    )
 
                     interrupt_event.set()
 
-        # =====================
-        # CLEAR OLD SPEECH
-        # =====================
+            speech_counter += 1
 
-                    clear_queue(tts_queue)
-
-                    interrupt_counter = 0
-
-            else:
-
-                interrupt_counter = 0
+             
             if (not recording and speech_counter >= SPEECH_CONFIRM_CHUNKS):
 
 
@@ -122,7 +130,8 @@ def audio_loop():
                 )
 
                 recording = True
-                frames = list(prebuffer)
+                frames=[]
+                frames.extend(prebuffer)
 
             silence_counter = 0
 
@@ -132,11 +141,13 @@ def audio_loop():
             speech_counter = 0
 
             if recording:
+                print(".", end="", flush=True)
 
-                silence_counter += 1
-
+                
+                
                 frames.append(pcm_bytes)
-
+                
+                silence_counter += 1
                 if (
                     silence_counter >
                     MAX_SILENCE_CHUNKS
@@ -145,12 +156,20 @@ def audio_loop():
                     audio_pcm = b"".join(
                         frames
                     )
+                    if len(audio_pcm) < MIN_AUDIO_BYTES:
+                        recording = False
+
+                        silence_counter = 0
+
+                        frames = []
+
+                        continue
                     try:
-                        audio_queue.put(
+                        audio_queue.put_nowait(
                             audio_pcm
                         )
-                    except:
-                        pass
+                    except Exception as e:
+                        print(f"[Audio queue Error] {e}")
 
                     event_queue.put(
                         Event.SPEECH_FINISHED
@@ -160,4 +179,4 @@ def audio_loop():
 
                     silence_counter = 0
 
-                    frames = list(prebuffer)
+                    frames = []

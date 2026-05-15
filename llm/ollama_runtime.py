@@ -1,4 +1,5 @@
 import ollama
+import traceback
 
 from memory.context_manager import (
     build_context,
@@ -9,24 +10,47 @@ MODEL = "tinyllama"
 
 def stream_llm(prompt):
 
-    context = build_context(prompt)
+    try:
 
-    stream = ollama.chat(
-        model=MODEL,
-        messages=context,
-        stream=True
-    )
+        context = build_context(
+            prompt
+        )
 
-    response_text = ""
+        response_text = ""
 
-    for chunk in stream:
+        stream = ollama.chat(
+            model=MODEL,
+            messages=context,
+            stream=True
+        )
 
-        token = chunk[
-            "message"
-        ]["content"]
+        for chunk in stream:
 
-        response_text += token
+            try:
 
-        yield token
+                token = (
+                    chunk["message"]
+                    ["content"]
+                )
 
-    add_response(response_text)
+                response_text += token
+
+                yield token
+
+            except Exception:
+
+                print(
+                    "\n[OLLAMA TOKEN ERROR]"
+                )
+
+                traceback.print_exc()
+
+        add_response(response_text)
+
+    except Exception:
+
+        print(
+            "\n[OLLAMA ERROR]"
+        )
+
+        traceback.print_exc()

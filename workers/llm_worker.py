@@ -1,3 +1,6 @@
+import traceback
+import time
+
 from runtime.queues import (
     stt_queue,
     tts_queue
@@ -19,54 +22,122 @@ def llm_loop():
 
     while True:
 
-        text = stt_queue.get()
-
-        optimized = optimize_prompt(
-            text
-        )
-
-        print(
-            f"\n[USER] {optimized}"
-        )
-
-        sentence = ""
-
-        for token in stream_llm(
-            optimized
-        ):
-
-            if interrupt_event.is_set():
-
-                print(
-                    "\n[LLM INTERRUPTED]"
-                )
-
-                break
+        try:
 
             print(
-                token,
-                end="",
-                flush=True
+                "[LLM] waiting..."
             )
 
-            sentence += token
+            text = stt_queue.get()
+
+            print(
+                "[LLM] got transcript"
+            )
+
+            optimized = optimize_prompt(
+                text
+            )
+
+            print(
+                f"\n[USER] {optimized}"
+            )
+
+            sentence = ""
 
             # =====================
-            # SENTENCE STREAMING
+            # SAFE STREAMING
             # =====================
 
-            if token in [".", "!", "?"]:
+            try:
 
-                try:
+                stream = stream_llm(
+                    optimized
+                )
 
-                    tts_queue.put_nowait(
-                        sentence
+                for token in stream:
+
+                    # =====================
+                    # INTERRUPT
+                    # =====================
+
+                    if interrupt_event.is_set():
+
+                        print(
+                            "\n[LLM INTERRUPTED]"
+                        )
+
+                        break
+
+                    # =====================
+                    # TOKEN OUTPUT
+                    # =====================
+
+                    print(
+                        token,
+                        end="",
+                        flush=True
                     )
 
-                except:
+                    sentence += token
 
-                    pass
+                    # =====================
+                    # SENTENCE STREAMING
+                    # =====================
 
-                sentence = ""
+                    if token in [
+                        ".",
+                        "!",
+                        "?"
+                    ]:
 
-        print()
+                        try:
+
+                            tts_queue.put_nowait(
+                                sentence
+                            )
+
+                        except Exception as e:
+
+                            print(
+                                f"\n[TTS QUEUE ERROR] {e}"
+                            )
+
+                        sentence = ""
+
+                # =====================
+                # REMAINING TOKENS
+                # =====================
+
+                if sentence.strip():
+
+                    try:
+
+                        tts_queue.put_nowait(
+                            sentence
+                        )
+
+                    except Exception as e:
+
+                        print(
+                            f"\n[TTS QUEUE ERROR] {e}"
+                        )
+
+                print("\n")
+
+            except Exception:
+
+                print(
+                    "\n[LLM STREAM ERROR]"
+                )
+
+                traceback.print_exc()
+
+        except Exception:
+
+            print(
+                "\n[LLM WORKER CRASH]"
+            )
+
+            traceback.print_exc()
+
+            time.sleep(1)

@@ -2,12 +2,6 @@ from runtime.state import RuntimeState
 
 from runtime.events import Event
 
-from runtime.queues import (
-    event_queue
-)
-from runtime.runtime_flags import (
-    interrupt_flag
-)
 class RuntimeController:
 
     def __init__(self):
@@ -16,9 +10,7 @@ class RuntimeController:
 
     def handle_event(self, event):
 
-        print(
-            f"[EVENT] {event}"
-        )
+        print(f"\[EVENT] {event}")
 
         # =====================
         # IDLE
@@ -64,14 +56,18 @@ class RuntimeController:
 
             if event == Event.INTERRUPT:
 
-                print("[SYSTEM] INTERRUPTING")
+                self.state = (
+                    RuntimeState.LISTENING
+                )
 
-            import runtime.runtime_flags \
-                    as flags
+            elif event == Event.SPEECH_FINISHED:
 
-            flags.interrupt_flag = False
+                self.state = (
+                    RuntimeState.PROCESSING
+                )
 
-            self.state = (RuntimeState.LISTENING)
-            print(f"[STATE] {self.state}")
+        print(
+            f"[STATE] {self.state}"
+        )
 
 controller = RuntimeController()

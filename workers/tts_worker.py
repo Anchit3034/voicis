@@ -1,6 +1,7 @@
 import time
+
 from runtime.queues import (
-    llm_queue
+    tts_queue
 )
 
 from runtime.signals import (
@@ -13,11 +14,17 @@ from tts.speaker import (
     stop_tts
 )
 
+import runtime.signals as signals
+
 def tts_loop():
 
     while True:
 
-        response = llm_queue.get()
+        print("[TTS] waiting...")
+
+        sentence = tts_queue.get()
+
+        print("[TTS] speaking...")
 
         speaking_event.set()
 
@@ -25,13 +32,17 @@ def tts_loop():
 
         try:
 
-            speak_stream(response)
-            import runtime.signals as signals
-            signals.last_tts_time = time.time()
+            speak_stream(sentence)
 
         except Exception as e:
 
-            print(e)
+            print(
+                f"[TTS ERROR] {e}"
+            )
+
+        signals.last_tts_time = (
+            time.time()
+        )
 
         speaking_event.clear()
 
