@@ -1,3 +1,7 @@
+# ==========================================
+# workers/llm_worker.py
+# ==========================================
+
 import traceback
 import time
 
@@ -45,7 +49,7 @@ def llm_loop():
             sentence = ""
 
             # =====================
-            # SAFE STREAMING
+            # STREAM TOKENS
             # =====================
 
             try:
@@ -81,26 +85,23 @@ def llm_loop():
                     sentence += token
 
                     # =====================
-                    # SENTENCE STREAMING
+                    # SENTENCE DETECT
                     # =====================
 
-                    if token in [
-                        ".",
-                        "!",
-                        "?"
-                    ]:
+                    if (
+                        "." in token or
+                        "!" in token or
+                        "?" in token
+                    ):
 
-                        try:
+                        # =====================
+                        # BLOCKING PUT
+                        # NATURAL BACKPRESSURE
+                        # =====================
 
-                            tts_queue.put_nowait(
-                                sentence
-                            )
-
-                        except Exception as e:
-
-                            print(
-                                f"\n[TTS QUEUE ERROR] {e}"
-                            )
+                        tts_queue.put(
+                            sentence
+                        )
 
                         sentence = ""
 
@@ -110,17 +111,9 @@ def llm_loop():
 
                 if sentence.strip():
 
-                    try:
-
-                        tts_queue.put_nowait(
-                            sentence
-                        )
-
-                    except Exception as e:
-
-                        print(
-                            f"\n[TTS QUEUE ERROR] {e}"
-                        )
+                    tts_queue.put(
+                        sentence
+                    )
 
                 print("\n")
 

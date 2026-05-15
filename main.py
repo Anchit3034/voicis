@@ -1,3 +1,7 @@
+# ==========================================
+# main.py
+# ==========================================
+
 import threading
 import traceback
 
@@ -29,15 +33,17 @@ from workers.tts_worker import (
     tts_loop
 )
 
-# =====================
+# ==========================================
 # SAFE THREAD WRAPPER
-# =====================
+# ==========================================
 
 def run_safe(name, fn):
 
     def wrapped():
 
-        print(f"[THREAD START] {name}")
+        print(
+            f"[THREAD START] {name}"
+        )
 
         try:
 
@@ -46,7 +52,7 @@ def run_safe(name, fn):
         except Exception:
 
             print(
-                f"\\n[THREAD CRASH] {name}"
+                f"\n[THREAD CRASH] {name}"
             )
 
             traceback.print_exc()
@@ -58,9 +64,9 @@ def run_safe(name, fn):
 
     thread.start()
 
-# =====================
+# ==========================================
 # START THREADS
-# =====================
+# ==========================================
 
 run_safe(
     "audio_worker",
@@ -88,12 +94,12 @@ run_safe(
 )
 
 print(
-    "\\n=== REAL RUNTIME STARTED ===\\n"
+    "\n=== REAL RUNTIME STARTED ===\n"
 )
 
-# =====================
-# MAIN EVENT LOOP
-# =====================
+# ==========================================
+# EVENT LOOP
+# ==========================================
 
 while True:
 
@@ -105,10 +111,18 @@ while True:
             event
         )
 
+    except KeyboardInterrupt:
+
+        print(
+            "\n[SYSTEM EXIT]"
+        )
+
+        break
+
     except Exception:
 
         print(
-            "\\n[MAIN LOOP CRASH]"
+            "\n[MAIN LOOP CRASH]"
         )
 
         traceback.print_exc()

@@ -1,58 +1,119 @@
+// ==========================================
+// audio/voice_segmenter.c
+// ==========================================
+
+#include <pulse/simple.h>
+#include <pulse/error.h>
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <alsa/asoundlib.h>
 
-#define CHUNK_SIZE 160
+#include <signal.h>
+#include <stdbool.h>
+
 #define SAMPLE_RATE 16000
+#define CHUNK_SIZE 480
 
-snd_pcm_t *capture_handle;
+pa_simple *stream = NULL;
+
+volatile bool stop_recording = false;
+
+// ==========================================
+// SIGNAL HANDLER
+// ==========================================
+
+void handle_sigint(int sig) {
+
+    stop_recording = true;
+}
+
+// ==========================================
+// INIT AUDIO
+// ==========================================
 
 void init_audio() {
 
-    int err;
+    signal(SIGINT, handle_sigint);
 
-    err = snd_pcm_open(
-        &capture_handle,
-        "default",
-        SND_PCM_STREAM_CAPTURE,
-        0
+    static const pa_sample_spec ss = {
+        .format = PA_SAMPLE_S16LE,
+        .rate = SAMPLE_RATE,
+        .channels = 1
+    };
+
+    int error;
+
+    stream = pa_simple_new(
+        NULL,
+        "VoiceAI",
+        PA_STREAM_RECORD,
+        NULL,
+        "record",
+        &ss,
+        NULL,
+        NULL,
+        &error
     );
 
-    if (err < 0) {
-        fprintf(stderr, "Mic open failed\n");
+    if (!stream) {
+
+        fprintf(
+            stderr,
+            "PulseAudio init failed: %s\n",
+            pa_strerror(error)
+        );
+
         exit(1);
     }
 
-    err = snd_pcm_set_params(
-        capture_handle,
-        SND_PCM_FORMAT_S16_LE,
-        SND_PCM_ACCESS_RW_INTERLEAVED,
-        1,
-        SAMPLE_RATE,
-        1,
-        500000
+    printf(
+        "[PulseAudio] Microphone Ready\n"
     );
-
-    if (err < 0) {
-        fprintf(stderr, "Mic config failed\n");
-        exit(1);
-    }
 }
+
+// ==========================================
+// READ AUDIO
+// ==========================================
 
 int read_audio(short *buffer) {
 
-    int frames = snd_pcm_readi(
-        capture_handle,
-        buffer,
-        CHUNK_SIZE
-    );
+    int error;
 
-    if (frames < 0) {
+    if (
+        pa_simple_read(
+            stream,
+            buffer,
+            sizeof(short) * CHUNK_SIZE,
+            &error
+        ) < 0
+    ) {
 
-        snd_pcm_prepare(capture_handle);
+        fprintf(
+            stderr,
+            "PulseAudio read failed: %s\n",
+            pa_strerror(error)
+        );
 
         return 0;
     }
 
-    return frames;
+    return CHUNK_SIZE;
+}
+
+// ==========================================
+// STOP CHECK
+// ==========================================
+
+int should_stop() {
+
+    return stop_recording;
+}
+
+// ==========================================
+// RESET FLAG
+// ==========================================
+
+void reset_stop_flag() {
+
+    stop_recording = false;
 }

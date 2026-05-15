@@ -1,16 +1,10 @@
+# ==========================================
+# workers/audio_worker.py
+# ==========================================
+
 import ctypes
-import webrtcvad
-import collections
-import time
+import threading
 
-import runtime.signals as signals
-from runtime.controller import (
-    controller
-)
-
-from runtime.state import (
-    RuntimeState
-)
 from runtime.events import Event
 
 from runtime.queues import (
@@ -18,29 +12,11 @@ from runtime.queues import (
     event_queue
 )
 
-from runtime.signals import (
-    speaking_event,
-    interrupt_event
-)
-MIN_AUDIO_BYTES = 12000
 CHUNK_SIZE = 480
 
-SAMPLE_RATE = 16000
-
-MAX_SILENCE_CHUNKS = 12
-PREBUFFER_CHUNKS = 12
-
-SPEECH_CONFIRM_CHUNKS = 2
-
-INTERRUPT_CONFIRM_CHUNKS = 4
-
-prebuffer = collections.deque(
-    maxlen=PREBUFFER_CHUNKS
-)
-
-speech_counter = 0
-
-interrupt_counter = 0
+# ==========================================
+# LOAD C LIB
+# ==========================================
 
 lib = ctypes.CDLL(
     "./audio/libsegmenter.so"
@@ -52,131 +28,154 @@ lib.read_audio.argtypes = [
     ctypes.POINTER(ctypes.c_short)
 ]
 
-vad = webrtcvad.Vad(1)
-
 buffer = (
     ctypes.c_short * CHUNK_SIZE
 )()
 
+# ==========================================
+# GLOBAL FLAGS
+# ==========================================
 
-def audio_loop():
+recording_event = threading.Event()
 
-    global speech_counter
-    global interrupt_counter
+shutdown_event = threading.Event()
 
-    recording = False
+# ==========================================
+# INPUT THREAD
+# ==========================================
 
-    silence_counter = 0
-
-    frames = []
+def input_loop():
 
     while True:
 
-        if (
-            time.time() -
-            signals.last_tts_time
-        ) < 0.8:
-
-            continue
-
-        result = lib.read_audio(buffer)
-
-        if result <= 0:
-            continue
-
-        
-        pcm_bytes = memoryview(buffer).cast("B").tobytes()
-
-# =====================
-# ALWAYS DRAIN ALSA
-# =====================
-
-        if controller.state not in [RuntimeState.IDLE,
-                                    RuntimeState.LISTENING,
-                                    RuntimeState.SPEAKING]:
-            continue
-
-        prebuffer.append(pcm_bytes)
-        is_speech = vad.is_speech(
-            pcm_bytes,
-            SAMPLE_RATE
+        cmd = input(
+            "\n[ENTER=start/stop | q=quit] > "
         )
 
-        if is_speech:
+        # =====================
+        # QUIT
+        # =====================
 
-            if speaking_event.is_set():
+        if cmd.lower() == "q":
 
-                interrupt_counter += 1
+            print(
+                "\n[SHUTDOWN]"
+            )
 
-                if (
-                    interrupt_counter >=
-                    INTERRUPT_CONFIRM_CHUNKS
-                ):
+            shutdown_event.set()
 
-                    print(
-                        "\n[INTERRUPT DETECTED]"
-                    )
+            recording_event.clear()
 
-                    interrupt_event.set()
+            break
 
-            speech_counter += 1
+        # =====================
+        # TOGGLE RECORDING
+        # =====================
 
-             
-            if (not recording and speech_counter >= SPEECH_CONFIRM_CHUNKS):
+        if recording_event.is_set():
 
-
-                event_queue.put(
-                    Event.SPEECH_STARTED
-                )
-
-                recording = True
-                frames=[]
-                frames.extend(prebuffer)
-
-            silence_counter = 0
-
-            frames.append(pcm_bytes)
+            recording_event.clear()
 
         else:
-            speech_counter = 0
 
-            if recording:
-                print(".", end="", flush=True)
+            recording_event.set()
 
-                
-                
-                frames.append(pcm_bytes)
-                
-                silence_counter += 1
-                if (
-                    silence_counter >
-                    MAX_SILENCE_CHUNKS
-                ):
+# ==========================================
+# AUDIO LOOP
+# ==========================================
 
-                    audio_pcm = b"".join(
-                        frames
-                    )
-                    if len(audio_pcm) < MIN_AUDIO_BYTES:
-                        recording = False
+def audio_loop():
 
-                        silence_counter = 0
+    threading.Thread(
+        target=input_loop,
+        daemon=True
+    ).start()
 
-                        frames = []
+    while not shutdown_event.is_set():
 
-                        continue
-                    try:
-                        audio_queue.put_nowait(
-                            audio_pcm
-                        )
-                    except Exception as e:
-                        print(f"[Audio queue Error] {e}")
+        # =====================
+        # WAIT FOR RECORD
+        # =====================
 
-                    event_queue.put(
-                        Event.SPEECH_FINISHED
-                    )
+        recording_event.wait()
 
-                    recording = False
+        if shutdown_event.is_set():
+            break
 
-                    silence_counter = 0
+        print(
+            "\n[RECORDING STARTED]"
+        )
 
-                    frames = []
+        event_queue.put(
+            Event.SPEECH_STARTED
+        )
+
+        frames = []
+
+        while recording_event.is_set():
+
+            result = lib.read_audio(
+                buffer
+            )
+
+            if result <= 0:
+                continue
+
+            pcm_bytes = memoryview(
+                buffer
+            ).cast("B").tobytes()
+
+            frames.append(
+                pcm_bytes
+            )
+
+            print(
+                ".",
+                end="",
+                flush=True
+            )
+
+            if shutdown_event.is_set():
+
+                recording_event.clear()
+
+                break
+
+        # =====================
+        # RECORDING STOPPED
+        # =====================
+
+        if not frames:
+            continue
+
+        print(
+            "\n[RECORDING STOPPED]"
+        )
+
+        audio_pcm = b"".join(
+            frames
+        )
+
+        print(
+            f"[AUDIO BYTES] {len(audio_pcm)}"
+        )
+
+        try:
+
+            audio_queue.put_nowait(
+                audio_pcm
+            )
+
+        except Exception as e:
+
+            print(
+                f"[AUDIO QUEUE ERROR] {e}"
+            )
+
+        event_queue.put(
+            Event.SPEECH_FINISHED
+        )
+
+    print(
+        "\n[AUDIO WORKER EXITED]"
+    )

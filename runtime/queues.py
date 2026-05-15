@@ -1,14 +1,25 @@
+# ==========================================
+# runtime/queues.py
+# ==========================================
+
 import queue
 
-audio_queue = queue.Queue(maxsize=2)
+audio_queue = queue.Queue(
+    maxsize=8
+)
 
-stt_queue = queue.Queue(maxsize=2)
+stt_queue = queue.Queue(
+    maxsize=8
+)
 
-llm_queue = queue.Queue(maxsize=2)
+tts_queue = queue.Queue(
+    maxsize=32
+)
 
-tts_queue = queue.Queue(maxsize=8)
+event_queue = queue.Queue(
+    maxsize=64
+)
 
-event_queue = queue.Queue(maxsize=2)
 def clear_queue(q):
 
     while not q.empty():
