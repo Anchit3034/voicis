@@ -312,5 +312,3 @@ Anchit Jain
 
 I vibed coded this.
 
-```
-```
