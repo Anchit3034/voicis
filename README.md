@@ -139,7 +139,7 @@ voice_ai/
 
 ```bash
 git clone https://github.com/Anchit3034/voicis.git
-cd voice_ai
+cd voicis
 ```
 
 ---
