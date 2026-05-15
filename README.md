@@ -310,5 +310,5 @@ Anchit Jain
 
 # Final Note
 
-I vibed coded this.
+Architected and directed a full-stack Voice AI using AI-assisted implementation to achieve rapid prototyping of low-level C components.
 
