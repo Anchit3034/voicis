@@ -1,6 +1,6 @@
-# ==========================================
-# workers/tts_worker.py
-# ==========================================
+
+
+import time
 
 from runtime.queues import (
     tts_queue
@@ -15,47 +15,46 @@ from tts.speaker import (
     speak_stream,
     stop_tts
 )
-from runtime.queues import (
-    clear_queue,
-    tts_queue
-)
 
-import time
 import runtime.signals as signals
+
+from runtime.logger import (
+    info,
+    error
+)
 
 def tts_loop():
 
     while True:
 
-        print("[TTS] waiting...")
-
-        sentence = tts_queue.get()
-
-        print("[TTS] speaking...")
-
-        speaking_event.set()
-        interrupt_event.set()
-        # CLEAR OLD SPEECH
-        clear_queue(tts_queue)
-
-        time.sleep(0.1)
-
-        interrupt_event.clear()
-
         try:
+
+            sentence = tts_queue.get()
+
+            if interrupt_event.is_set():
+
+                continue
+
+            speaking_event.set()
+
+            interrupt_event.clear()
+
+            info(
+                "TTS SPEAKING"
+            )
 
             speak_stream(sentence)
 
-        except Exception as e:
+            speaking_event.clear()
 
-            print(
-                f"[TTS ERROR] {e}"
+            signals.last_tts_time = (
+                time.time()
             )
 
-        speaking_event.clear()
+            stop_tts()
 
-        signals.last_tts_time = (
-            time.time()
-        )
+        except Exception as e:
 
-        stop_tts()
+            error(
+                f"TTS ERROR: {e}"
+            )

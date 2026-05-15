@@ -1,16 +1,20 @@
+# ==========================================
+# stt/whisper_engine.py
+# ==========================================
+
 import whisper
 import numpy as np
-import torch
 import traceback
 
-DEVICE = (
-    "cuda"
-    if torch.cuda.is_available()
-    else "cpu"
+from runtime.logger import (
+    info,
+    error
 )
 
-print(
-    f"[WHISPER] Loading on {DEVICE}"
+DEVICE = "cpu"
+
+info(
+    f"WHISPER LOADING ON {DEVICE}"
 )
 
 MODEL = whisper.load_model(
@@ -18,11 +22,11 @@ MODEL = whisper.load_model(
     device=DEVICE
 )
 
-print(
-    "[WHISPER] Ready"
+info(
+    "WHISPER READY"
 )
 
-def transcribe_pcm(audio_pcm):
+def transcribe_stream(audio_pcm):
 
     try:
 
@@ -34,15 +38,12 @@ def transcribe_pcm(audio_pcm):
             .astype(np.float32)
             / 32768.0
         )
-        print(f"[WHISPER AUDIO BYTES] {len(audio_pcm)}")
-        print(
-            "[WHISPER] Transcribing..."
-        )
 
         result = MODEL.transcribe(
             audio,
             fp16=False,
-            language="en"
+            language="en",
+            temperature=0
         )
 
         text = (
@@ -50,17 +51,12 @@ def transcribe_pcm(audio_pcm):
             .strip()
         )
 
-        print(
-            f"[WHISPER] Done: {text}"
-        )
-        print(f"[WHISPER MAX AMP] {np.max(np.abs(audio))}")
-
         return text
 
     except Exception:
 
-        print(
-            "\\n[WHISPER ERROR]"
+        error(
+            "WHISPER ERROR"
         )
 
         traceback.print_exc()

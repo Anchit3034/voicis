@@ -1,6 +1,4 @@
-# ==========================================
-# main.py
-# ==========================================
+
 
 import threading
 import traceback
@@ -40,9 +38,10 @@ from tts.speaker import (
     stop_tts
 )
 
-# ==========================================
-# GLOBAL SHUTDOWN
-# ==========================================
+from runtime.logger import (
+    info,
+    error
+)
 
 system_running = True
 
@@ -54,8 +53,8 @@ def handle_sigint(sig, frame):
 
     global system_running
 
-    print(
-        "\n\n[SYSTEM SHUTDOWN]"
+    info(
+        "SYSTEM SHUTDOWN"
     )
 
     system_running = False
@@ -66,7 +65,6 @@ def handle_sigint(sig, frame):
 
     sys.exit(0)
 
-# REGISTER SIGNAL
 signal.signal(
     signal.SIGINT,
     handle_sigint
@@ -80,18 +78,14 @@ def run_safe(name, fn):
 
     def wrapped():
 
-        print(
-            f"[THREAD START] {name}"
-        )
-
         try:
 
             fn()
 
         except Exception:
 
-            print(
-                f"\n[THREAD CRASH] {name}"
+            error(
+                f"{name} CRASH"
             )
 
             traceback.print_exc()
@@ -132,8 +126,8 @@ run_safe(
     scheduler_loop
 )
 
-print(
-    "\n=== REAL RUNTIME STARTED ===\n"
+info(
+    "REAL RUNTIME STARTED"
 )
 
 # ==========================================
@@ -146,6 +140,10 @@ while system_running:
 
         event = event_queue.get(
             timeout=0.5
+        )
+
+        print(
+            f"[EVENT] {event}"
         )
 
         controller.handle_event(
