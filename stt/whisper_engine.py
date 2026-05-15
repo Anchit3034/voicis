@@ -14,7 +14,7 @@ print(
 )
 
 MODEL = whisper.load_model(
-    "base",
+    "small.en",
     device=DEVICE
 )
 

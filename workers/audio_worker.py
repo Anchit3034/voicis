@@ -1,7 +1,7 @@
 # ==========================================
 # workers/audio_worker.py
 # ==========================================
-
+import time
 import ctypes
 import threading
 
@@ -11,7 +11,9 @@ from runtime.queues import (
     audio_queue,
     event_queue
 )
-
+from runtime.signals import (
+    interrupt_event
+)
 CHUNK_SIZE = 480
 
 # ==========================================
@@ -45,7 +47,7 @@ shutdown_event = threading.Event()
 # ==========================================
 
 def input_loop():
-
+    
     while True:
 
         cmd = input(
@@ -105,7 +107,9 @@ def audio_loop():
         print(
             "\n[RECORDING STARTED]"
         )
-
+        interrupt_event.set()
+        time.sleep(0.1)
+        interrupt_event.clear()
         event_queue.put(
             Event.SPEECH_STARTED
         )
@@ -113,7 +117,7 @@ def audio_loop():
         frames = []
 
         while recording_event.is_set():
-
+            
             result = lib.read_audio(
                 buffer
             )

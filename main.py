@@ -4,6 +4,8 @@
 
 import threading
 import traceback
+import signal
+import sys
 
 from runtime.controller import (
     controller
@@ -18,7 +20,8 @@ from runtime.scheduler import (
 )
 
 from workers.audio_worker import (
-    audio_loop
+    audio_loop,
+    shutdown_event
 )
 
 from workers.stt_worker import (
@@ -31,6 +34,42 @@ from workers.llm_worker import (
 
 from workers.tts_worker import (
     tts_loop
+)
+
+from tts.speaker import (
+    stop_tts
+)
+
+# ==========================================
+# GLOBAL SHUTDOWN
+# ==========================================
+
+system_running = True
+
+# ==========================================
+# SIGNAL HANDLER
+# ==========================================
+
+def handle_sigint(sig, frame):
+
+    global system_running
+
+    print(
+        "\n\n[SYSTEM SHUTDOWN]"
+    )
+
+    system_running = False
+
+    shutdown_event.set()
+
+    stop_tts()
+
+    sys.exit(0)
+
+# REGISTER SIGNAL
+signal.signal(
+    signal.SIGINT,
+    handle_sigint
 )
 
 # ==========================================
@@ -98,31 +137,21 @@ print(
 )
 
 # ==========================================
-# EVENT LOOP
+# MAIN LOOP
 # ==========================================
 
-while True:
+while system_running:
 
     try:
 
-        event = event_queue.get()
+        event = event_queue.get(
+            timeout=0.5
+        )
 
         controller.handle_event(
             event
         )
 
-    except KeyboardInterrupt:
+    except:
 
-        print(
-            "\n[SYSTEM EXIT]"
-        )
-
-        break
-
-    except Exception:
-
-        print(
-            "\n[MAIN LOOP CRASH]"
-        )
-
-        traceback.print_exc()
+        pass

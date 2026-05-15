@@ -1,41 +1,84 @@
+# ==========================================
+# tts/speaker.py
+# ==========================================
+
 import subprocess
 import threading
+import signal
+import os
 import time
 
 from runtime.signals import (
     interrupt_event
 )
 
-
 PIPER_PATH = (
     "piper"
 )
 
 MODEL_PATH = (
-    "./piper/"
-    "en_US-lessac-medium.onnx"
+    "./piper/en_US-lessac-medium.onnx"
 )
 
 current_piper = None
-
 current_aplay = None
+
+process_lock = threading.Lock()
+
+# ==========================================
+# FORCE STOP
+# ==========================================
 
 def stop_tts():
 
     global current_piper
     global current_aplay
 
-    if current_piper:
+    with process_lock:
 
-        current_piper.kill()
+        # =====================
+        # STOP APLAY
+        # =====================
 
-        current_piper = None
+        if current_aplay:
 
-    if current_aplay:
+            try:
 
-        current_aplay.kill()
+                os.killpg(
+                    os.getpgid(
+                        current_aplay.pid
+                    ),
+                    signal.SIGTERM
+                )
 
-        current_aplay = None
+            except:
+                pass
+
+            current_aplay = None
+
+        # =====================
+        # STOP PIPER
+        # =====================
+
+        if current_piper:
+
+            try:
+
+                os.killpg(
+                    os.getpgid(
+                        current_piper.pid
+                    ),
+                    signal.SIGTERM
+                )
+
+            except:
+                pass
+
+            current_piper = None
+
+# ==========================================
+# INTERRUPT WATCHER
+# ==========================================
 
 def interrupt_monitor():
 
@@ -43,11 +86,19 @@ def interrupt_monitor():
 
         if interrupt_event.is_set():
 
+            print(
+                "\n[TTS INTERRUPTED]"
+            )
+
             stop_tts()
 
             break
 
         time.sleep(0.02)
+
+# ==========================================
+# STREAM SPEECH
+# ==========================================
 
 def speak_stream(text):
 
@@ -61,38 +112,76 @@ def speak_stream(text):
 
     monitor.start()
 
-    current_piper = subprocess.Popen(
-        [
-            PIPER_PATH,
-            "--model",
-            MODEL_PATH,
-            "--output-raw",
-            "--length_scale",
-            "0.9"
-        ],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE
-    )
+    with process_lock:
 
-    current_aplay = subprocess.Popen(
-        [
-            "aplay",
-            "-r",
-            "22050",
-            "-f",
-            "S16_LE",
-            "-t",
-            "raw"
-        ],
-        stdin=current_piper.stdout
-    )
+        # =====================
+        # START PIPER
+        # =====================
 
-    current_piper.stdin.write(
-        text.encode()
-    )
+        current_piper = subprocess.Popen(
 
-    current_piper.stdin.close()
+            [
+                PIPER_PATH,
+                "--model",
+                MODEL_PATH,
+                "--output-raw"
+            ],
 
-    current_aplay.wait()
+            stdin=subprocess.PIPE,
+
+            stdout=subprocess.PIPE,
+
+            preexec_fn=os.setsid
+        )
+
+        # =====================
+        # START APLAY
+        # =====================
+
+        current_aplay = subprocess.Popen(
+
+            [
+                "aplay",
+                "-r", "22050",
+                "-f", "S16_LE",
+                "-t", "raw"
+            ],
+
+            stdin=current_piper.stdout,
+
+            preexec_fn=os.setsid
+        )
+
+    try:
+
+        current_piper.stdin.write(
+            text.encode()
+        )
+
+        current_piper.stdin.close()
+
+    except:
+
+        stop_tts()
+
+        return
+
+    # =====================
+    # WAIT LOOP
+    # =====================
+
+    while True:
+
+        if interrupt_event.is_set():
+
+            stop_tts()
+
+            return
+
+        if current_aplay.poll() is not None:
+
+            break
+
+        time.sleep(0.02)
 
     stop_tts()
