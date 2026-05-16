@@ -29,7 +29,6 @@ This project focuses on:
 - Graceful shutdown handling
 - Runtime logging system
 - Context memory support
-- Prompt token optimization
 
 ---
 
