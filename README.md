@@ -89,8 +89,6 @@ voice_ai/
 ├── tts/
 │   └── speaker.py
 │
-├── optimization/
-│   └── token_optimizer.py
 │
 ├── memory/
 │   └── context_manager.py
