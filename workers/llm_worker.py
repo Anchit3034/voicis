@@ -12,10 +12,6 @@ from llm.ollama_runtime import (
     stream_llm
 )
 
-from optimization.token_optimizer import (
-    optimize_prompt
-)
-
 from runtime.signals import (
     interrupt_event
 )
@@ -34,20 +30,17 @@ def llm_loop():
 
             text = stt_queue.get()
 
-            optimized = optimize_prompt(
-                text
-            )
-
+            
             info(
-                f"USER: {optimized}"
+                f"USER: {text}"
             )
 
             sentence = ""
 
             stream = stream_llm(
-                optimized
+                text
             )
-
+            response=""
             for token in stream:
 
                 if interrupt_event.is_set():
@@ -57,13 +50,8 @@ def llm_loop():
                     )
 
                     break
-
-                print(
-                    token,
-                    end="",
-                    flush=True
-                )
-
+                
+                response +=token
                 sentence += token
 
                 if (
@@ -95,3 +83,8 @@ def llm_loop():
             traceback.print_exc()
 
             time.sleep(1)
+    if response.strip():
+        info(
+                f"ASSISTANT:{response}"
+                )
+
