@@ -117,6 +117,18 @@ voice_ai/
 * PulseAudio
 * PCM Streaming
 
+## References
+
+[1] R. Maas, A. Rastrow, C. Chen, and B. Hoffmeister, "Building a Real-Time Spoken Language Understanding System," in Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), 2018.
+
+[2] L. Poettering, P. Ossman, and S. E. King, "The PulseAudio Sound Server," in LINUX. CONF. AU. 8th Conference of Australian Linux Users, Australia, 2007, p. 41.
+
+[3] R. H. Bai, Z. Gu, T. Likhomanenko, and N. Jaitly, "SpeakStream: Streaming text-to-speech with interleaved data," arXiv preprint arXiv:2505.19206, 2025.
+
+[4] G. Skantze, "Turn-taking in conversational systems and human-robot interaction: a review," Computer Speech & Language, vol. 67, p. 101178, 2021.
+
+[5] P. Davis, "The architecture of the JACK audio server," in Proceedings of the Linux Audio Conference (LAC), Karlsruhe, Germany, 2003.
+
 ## Concepts
 
 * Multithreading
